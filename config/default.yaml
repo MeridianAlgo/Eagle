@@ -1,0 +1,277 @@
+# ============================================================
+# Eagle Trading Bot - Default Configuration
+# ============================================================
+# Copy this file to 'config.yaml' and customize for your setup.
+# Environment variables can override any value using the
+# EAGLE_ prefix (e.g., EAGLE_BROKER__API_KEY).
+# ============================================================
+
+app:
+  name: "Eagle Trading Bot"
+  version: "1.0.0"
+  mode: "paper"                    # paper | live | backtest
+  log_level: "INFO"                # DEBUG | INFO | WARNING | ERROR
+  timezone: "America/New_York"
+
+# -----------------------------------------------------------
+# Data Configuration
+# -----------------------------------------------------------
+data:
+  default_provider: "yahoo"        # yahoo | binance | alpaca | alpha_vantage
+  cache_enabled: true
+  cache_ttl_minutes: 15
+  history_days: 365
+  store:
+    backend: "duckdb"              # duckdb | sqlite
+    path: "data/eagle.duckdb"
+
+  providers:
+    yahoo:
+      enabled: true
+      rate_limit: 5                # requests per second
+
+    binance:
+      enabled: false
+      api_key: ""
+      api_secret: ""
+      testnet: true
+
+    alpaca:
+      enabled: false
+      api_key: ""
+      api_secret: ""
+      paper: true
+      base_url: "https://paper-api.alpaca.markets"
+
+    alpha_vantage:
+      enabled: false
+      api_key: ""
+
+# -----------------------------------------------------------
+# Universe / Watchlist
+# -----------------------------------------------------------
+universe:
+  assets:
+    - symbol: "SPY"
+      asset_type: "equity"
+    - symbol: "QQQ"
+      asset_type: "equity"
+    - symbol: "AAPL"
+      asset_type: "equity"
+    - symbol: "MSFT"
+      asset_type: "equity"
+    - symbol: "GOOGL"
+      asset_type: "equity"
+    - symbol: "AMZN"
+      asset_type: "equity"
+    - symbol: "NVDA"
+      asset_type: "equity"
+    - symbol: "TSLA"
+      asset_type: "equity"
+  timeframes:
+    - "1d"
+    - "1h"
+    - "15m"
+
+# -----------------------------------------------------------
+# Feature Engineering
+# -----------------------------------------------------------
+features:
+  technical_indicators:
+    sma_periods: [10, 20, 50, 200]
+    ema_periods: [12, 26, 50]
+    rsi_period: 14
+    macd:
+      fast: 12
+      slow: 26
+      signal: 9
+    bollinger:
+      period: 20
+      std_dev: 2.0
+    atr_period: 14
+    adx_period: 14
+    stochastic:
+      k_period: 14
+      d_period: 3
+    volume_indicators: true
+    volatility_indicators: true
+    momentum_indicators: true
+
+  custom_features:
+    price_momentum: true
+    volume_profile: true
+    market_regime: true
+    correlation_features: true
+
+# -----------------------------------------------------------
+# ML Models
+# -----------------------------------------------------------
+models:
+  default_model: "ensemble"
+
+  lstm:
+    enabled: true
+    hidden_size: 128
+    num_layers: 3
+    dropout: 0.2
+    sequence_length: 60
+    learning_rate: 0.001
+    epochs: 100
+    batch_size: 32
+    early_stopping_patience: 10
+
+  transformer:
+    enabled: true
+    d_model: 128
+    n_heads: 8
+    n_encoder_layers: 4
+    dropout: 0.1
+    sequence_length: 60
+    learning_rate: 0.0001
+    epochs: 100
+    batch_size: 32
+
+  xgboost:
+    enabled: true
+    n_estimators: 500
+    max_depth: 6
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    early_stopping_rounds: 20
+
+  ensemble:
+    enabled: true
+    method: "weighted_vote"        # weighted_vote | stacking | bagging
+    weights:
+      lstm: 0.35
+      transformer: 0.35
+      xgboost: 0.30
+    confidence_threshold: 0.6
+
+# -----------------------------------------------------------
+# Strategies
+# -----------------------------------------------------------
+strategies:
+  active_strategies:
+    - "ml_strategy"
+
+  momentum:
+    lookback_period: 20
+    entry_threshold: 0.02
+    exit_threshold: -0.01
+    max_holding_days: 10
+
+  mean_reversion:
+    lookback_period: 20
+    entry_z_score: 2.0
+    exit_z_score: 0.5
+    max_holding_days: 5
+
+  ml_strategy:
+    model: "ensemble"
+    retrain_interval_days: 7
+    min_confidence: 0.6
+    position_scale_by_confidence: true
+
+  pairs_trading:
+    lookback_period: 60
+    entry_z_score: 2.0
+    exit_z_score: 0.5
+    cointegration_pvalue: 0.05
+
+# -----------------------------------------------------------
+# Risk Management
+# -----------------------------------------------------------
+risk:
+  max_portfolio_risk: 0.02         # 2% max portfolio risk per trade
+  max_position_size: 0.10          # 10% max single position
+  max_total_exposure: 0.95         # 95% max total exposure
+  max_correlated_exposure: 0.30    # 30% max correlated positions
+  max_daily_loss: 0.03             # 3% max daily loss
+  max_drawdown: 0.10               # 10% max drawdown before halt
+  stop_loss_pct: 0.02              # 2% stop loss
+  take_profit_pct: 0.06            # 6% take profit (3:1 R:R)
+  trailing_stop_pct: 0.015         # 1.5% trailing stop
+  use_atr_sizing: true
+  atr_risk_multiplier: 2.0
+  var_confidence: 0.95
+  var_lookback_days: 252
+  correlation_threshold: 0.7
+  cooldown_after_loss_minutes: 30
+
+# -----------------------------------------------------------
+# Execution
+# -----------------------------------------------------------
+execution:
+  broker: "paper"                  # paper | alpaca | binance | ibkr
+  order_type: "market"             # market | limit | stop_limit
+  limit_offset_pct: 0.001          # 0.1% offset for limit orders
+  max_slippage_pct: 0.005          # 0.5% max allowed slippage
+  retry_attempts: 3
+  retry_delay_seconds: 2
+
+  paper:
+    initial_capital: 100000.0
+    commission_pct: 0.001           # 0.1% commission
+    slippage_model: "percentage"    # percentage | fixed | volume_based
+    slippage_pct: 0.001
+
+# -----------------------------------------------------------
+# Backtesting
+# -----------------------------------------------------------
+backtest:
+  start_date: "2023-01-01"
+  end_date: "2024-12-31"
+  initial_capital: 100000.0
+  commission_pct: 0.001
+  slippage_pct: 0.001
+  benchmark: "SPY"
+  warmup_period: 60
+  walk_forward:
+    enabled: true
+    train_window_days: 252
+    test_window_days: 63
+    step_days: 21
+
+# -----------------------------------------------------------
+# Dashboard
+# -----------------------------------------------------------
+dashboard:
+  enabled: true
+  host: "127.0.0.1"
+  port: 5050
+  refresh_interval_seconds: 5
+  theme: "dark"
+
+# -----------------------------------------------------------
+# Alerts / Notifications
+# -----------------------------------------------------------
+alerts:
+  enabled: true
+  channels:
+    console: true
+    file: true
+    email: false
+    discord: false
+  
+  email:
+    smtp_host: ""
+    smtp_port: 587
+    username: ""
+    password: ""
+    recipient: ""
+
+  discord:
+    webhook_url: ""
+
+# -----------------------------------------------------------
+# Logging
+# -----------------------------------------------------------
+logging:
+  console: true
+  file: true
+  file_path: "logs/eagle.log"
+  max_file_size_mb: 50
+  backup_count: 5
+  structured: true
