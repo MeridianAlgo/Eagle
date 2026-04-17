@@ -77,8 +77,8 @@ class KrakenWebSocket:
         self._current_candle: Candle | None = None
         self._callbacks: list[CandleCallback] = []
         self._running = False
-        # Track the open-time of the current live candle so we know when a new one starts
-        self._live_candle_open: float = 0.0
+        # Track the interval END time (etime / k[1]) — fixed for all trades in the same minute
+        self._current_interval_end: int = 0
 
     # ------------------------------------------------------------------
     # Public API
@@ -207,22 +207,22 @@ class KrakenWebSocket:
             return
 
         k = msg[1]
-        # Kraken ohlc fields: time, etime, open, high, low, close, vwap, volume, count
-        # "time" is the start of the interval; "etime" is the end (i.e., "now")
-        candle_open_time = float(k[0])
-        candle_end_time  = float(k[1])
-        now_ts = datetime.now(tz=timezone.utc).timestamp()
+        # Kraken ohlc fields: time(last-trade-ts), etime(interval-end), open, high, low, close, vwap, volume, count
+        # IMPORTANT: k[0] = last-trade timestamp (changes every message — do NOT use for interval ID)
+        #            k[1] = etime = fixed end-of-interval timestamp (same for all trades in the minute)
+        interval_end = int(float(k[1]))          # use as stable interval identifier
+        interval_open_ts = interval_end - 60     # 1-minute candle: open = end - 60 s
 
-        o  = float(k[2])
-        h  = float(k[3])
-        l  = float(k[4])
-        c  = float(k[5])
+        o   = float(k[2])
+        h   = float(k[3])
+        l   = float(k[4])
+        c   = float(k[5])
         vol = float(k[7])
 
-        # A new candle has started when the open-time changes
-        new_candle_started = candle_open_time != self._live_candle_open
-        if new_candle_started and self._live_candle_open != 0:
-            # The previous candle is now closed
+        # Detect a new 1-minute interval when etime advances
+        new_interval = interval_end != self._current_interval_end
+        if new_interval and self._current_interval_end != 0:
+            # The previous interval just ended — emit its final candle as closed
             if self._current_candle is not None:
                 closed = Candle(
                     timestamp=self._current_candle.timestamp,
@@ -234,12 +234,17 @@ class KrakenWebSocket:
                     is_closed=True,
                 )
                 self._history.append(closed)
+                logger.debug(
+                    f"Candle closed: {closed.timestamp} "
+                    f"O={closed.open:.2f} H={closed.high:.2f} "
+                    f"L={closed.low:.2f} C={closed.close:.2f}"
+                )
                 await self._dispatch(closed, closed.close)
 
-        self._live_candle_open = candle_open_time
+        self._current_interval_end = interval_end
         self._current_price = c
         live_candle = Candle(
-            timestamp=datetime.fromtimestamp(candle_open_time, tz=timezone.utc),
+            timestamp=datetime.fromtimestamp(interval_open_ts, tz=timezone.utc),
             open=o, high=h, low=l, close=c, volume=vol,
             is_closed=False,
         )
