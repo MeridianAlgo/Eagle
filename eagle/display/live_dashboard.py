@@ -35,6 +35,7 @@ from rich.text import Text
 
 from eagle.execution.paper_account import PaperAccount, Trade
 from eagle.indicators.realtime_calculator import Indicators
+from eagle.learning.weight_adapter import WeightAdapter
 from eagle.strategies.realtime.aggregator import TradeRecommendation
 from eagle.strategies.realtime.base import SignalDirection
 
@@ -96,10 +97,12 @@ class DashboardSnapshot:
     recommendation: Optional[TradeRecommendation] = None
     last_trade: Optional[Trade] = None
     account: Optional[PaperAccount] = None
+    weight_adapter: Optional[WeightAdapter] = None
     candles_received: int = 0
     connected: bool = False
-    status_msg: str = "Connecting…"
+    status_msg: str = "Connecting..."
     last_update: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    last_learn_event: str = ""
 
 
 # ── main dashboard class ────────────────────────────────────────────────────
@@ -131,6 +134,7 @@ class LiveDashboard:
             Layout(name="middle", ratio=1),
             Layout(self._recommendation(), name="rec", size=5),
             Layout(name="bottom", ratio=1),
+            Layout(self._learning_panel(), name="learn", size=9),
         )
         layout["middle"].split_row(
             Layout(self._indicators(), name="indicators"),
@@ -342,3 +346,57 @@ class LiveDashboard:
             )
 
         return Panel(t, title="[bold white]Recent Trades[/bold white]", border_style="white")
+
+    def _learning_panel(self) -> Panel:
+        snap = self._snap
+        wa = snap.weight_adapter
+
+        if wa is None or wa.total_learned == 0:
+            content = Text(
+                f"  Self-learning active — waiting for first completed trade to start grading strategies...  "
+                f"  {snap.last_learn_event or ''}",
+                style="dim", justify="center",
+            )
+            return Panel(content, title="[bold yellow]Self-Learning Engine[/bold yellow]", border_style="yellow")
+
+        rows = wa.summary_table()  # [(name, accuracy%, weight%, graded)]
+
+        t = Table(box=box.SIMPLE, show_header=True, header_style="bold yellow", expand=True)
+        t.add_column("Strategy", width=18)
+        t.add_column("Accuracy", width=10, justify="right")
+        t.add_column("Weight", width=9, justify="right")
+        t.add_column("Graded", width=8, justify="right")
+        t.add_column("Accuracy Bar", min_width=24)
+        t.add_column("Status", width=16)
+
+        for name, acc_pct, w_pct, graded in rows:
+            acc_color = "bright_green" if acc_pct >= 60 else ("yellow" if acc_pct >= 45 else "bright_red")
+            w_color = "cyan" if w_pct >= 28 else "dim"
+            bar_filled = int(acc_pct / 100 * 24)
+            bar = f"[{acc_color}]{'█' * bar_filled}[/{acc_color}][dim]{'░' * (24 - bar_filled)}[/dim]"
+            if graded == 0:
+                status = "[dim]no data yet[/dim]"
+            elif acc_pct >= 60:
+                status = "[green]trusted[/green]"
+            elif acc_pct >= 45:
+                status = "[yellow]neutral[/yellow]"
+            else:
+                status = "[red]down-weighted[/red]"
+            t.add_row(
+                f"[bold]{name}[/bold]",
+                f"[{acc_color}]{acc_pct:.1f}%[/{acc_color}]",
+                f"[{w_color}]{w_pct:.1f}%[/{w_color}]",
+                str(graded),
+                bar,
+                status,
+            )
+
+        learn_line = Text.assemble(
+            Text(f"  Trades learned: {wa.total_learned}   ", style="bold"),
+            Text(snap.last_learn_event, style="dim italic"),
+        )
+        return Panel(
+            Group(learn_line, t),
+            title="[bold yellow]Self-Learning Engine  (weights update after every closed trade)[/bold yellow]",
+            border_style="yellow",
+        )

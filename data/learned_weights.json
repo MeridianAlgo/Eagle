@@ -1,0 +1,25 @@
+{
+  "total_learned": 1,
+  "strategies": {
+    "MACD(12,26,9)": {
+      "accuracy": 0.46,
+      "total_graded": 1,
+      "correct_calls": 0
+    },
+    "RSI(14)": {
+      "accuracy": 0.46,
+      "total_graded": 1,
+      "correct_calls": 0
+    },
+    "Bollinger(20,2s)": {
+      "accuracy": 0.46,
+      "total_graded": 1,
+      "correct_calls": 0
+    },
+    "EMA(9/21/50)": {
+      "accuracy": 0.46,
+      "total_graded": 1,
+      "correct_calls": 0
+    }
+  }
+}

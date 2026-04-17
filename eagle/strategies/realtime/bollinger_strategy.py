@@ -28,7 +28,7 @@ class BollingerStrategy(RealtimeStrategy):
 
     @property
     def name(self) -> str:
-        return "Bollinger(20,2σ)"
+        return "Bollinger(20,2s)"
 
     def compute(self, indicators: Indicators) -> StrategySignal:
         pct_b = indicators.bb_pct

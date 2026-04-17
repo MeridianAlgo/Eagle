@@ -25,6 +25,12 @@ import asyncio
 import logging
 import sys
 
+# Force UTF-8 on Windows so Rich emoji render correctly
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(

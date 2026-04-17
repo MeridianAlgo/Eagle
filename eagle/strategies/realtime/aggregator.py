@@ -69,23 +69,25 @@ class TradeRecommendation:
         }.get(lbl, "⏸️ ")
 
 
-# Strategy weights (must sum to 1.0)
-_WEIGHTS: dict[str, float] = {
-    "MACD(12,26,9)":   0.30,
-    "RSI(14)":         0.25,
-    "Bollinger(20,2σ)": 0.25,
-    "EMA(9/21/50)":    0.20,
+# Default strategy weights (sum to 1.0) — overridden by WeightAdapter after learning
+_DEFAULT_WEIGHTS: dict[str, float] = {
+    "MACD(12,26,9)":    0.30,
+    "RSI(14)":          0.25,
+    "Bollinger(20,2s)": 0.25,
+    "EMA(9/21/50)":     0.20,
 }
 
 
 class SignalAggregator:
     """
     Runs all real-time strategies and aggregates their signals.
+    Weights are updated live by the learning system after each trade.
 
     Usage::
 
         agg = SignalAggregator()
         recommendation = agg.evaluate(indicators)
+        agg.update_weights(new_weights)   # called by WeightAdapter
     """
 
     def __init__(self) -> None:
@@ -95,6 +97,11 @@ class SignalAggregator:
             BollingerStrategy(),
             EMAStrategy(),
         ]
+        self._weights: dict[str, float] = dict(_DEFAULT_WEIGHTS)
+
+    def update_weights(self, weights: dict[str, float]) -> None:
+        """Hot-swap strategy weights from the learning system."""
+        self._weights.update(weights)
 
     def evaluate(self, indicators: Indicators) -> TradeRecommendation:
         signals = [s.compute(indicators) for s in self._strategies]
@@ -115,23 +122,20 @@ class SignalAggregator:
     # Internal
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _aggregate_score(signals: list[StrategySignal]) -> float:
+    def _aggregate_score(self, signals: list[StrategySignal]) -> float:
         total_weight = 0.0
         weighted_sum = 0.0
         for sig in signals:
-            w = _WEIGHTS.get(sig.strategy_name, 0.25)
+            w = self._weights.get(sig.strategy_name, 0.25)
             total_weight += w
             weighted_sum += w * sig.weighted_score
         return weighted_sum / total_weight if total_weight else 0.0
 
-    @staticmethod
-    def _aggregate_confidence(signals: list[StrategySignal]) -> float:
-        """Confidence = weighted average of individual confidences."""
+    def _aggregate_confidence(self, signals: list[StrategySignal]) -> float:
         total_weight = 0.0
         weighted_sum = 0.0
         for sig in signals:
-            w = _WEIGHTS.get(sig.strategy_name, 0.25)
+            w = self._weights.get(sig.strategy_name, 0.25)
             total_weight += w
             weighted_sum += w * sig.confidence
         return weighted_sum / total_weight if total_weight else 0.0
